@@ -97,7 +97,7 @@ else if (notFound)
 
         if (item is not null)
         {
-            await BasketState.AddAsync(item);
+            await BasketState.AddAsync(item, "none");
             await UpdateNumInCartAsync();
         }
     }

@@ -2,6 +2,8 @@
 using Azure.AI.OpenAI;
 using eShop.WebApp;
 using eShop.WebAppComponents.Services;
+using Microsoft.ApplicationInsights.AspNetCore;
+using Microsoft.ApplicationInsights.Extensibility;
 using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.Authentication.OpenIdConnect;
 using Microsoft.AspNetCore.Components.Authorization;
@@ -14,6 +16,12 @@ using Microsoft.SemanticKernel.Connectors.OpenAI;
 using Microsoft.SemanticKernel.TextGeneration;
 using eShop.WebApp.Services.OrderStatus.IntegrationEvents;
 using eShop.Basket.API.Grpc;
+using Azure.Identity;
+using Microsoft.FeatureManagement;
+using Microsoft.Extensions.Configuration;
+using Microsoft.ApplicationInsights;
+using Microsoft.FeatureManagement.Telemetry;
+using Microsoft.FeatureManagement.Telemetry.ApplicationInsights.AspNetCore;
 
 public static class Extensions
 {
@@ -22,7 +30,21 @@ public static class Extensions
         builder.AddAuthenticationServices();
 
         builder.AddRabbitMqEventBus("EventBus")
-               .AddEventBusSubscriptions();
+        .AddEventBusSubscriptions();
+
+        builder.Configuration.AddAzureAppConfiguration(options => 
+            options.Connect(
+                new Uri(builder.Configuration.GetConnectionString("appConfig")!),
+                new DefaultAzureCredential())
+                .UseFeatureFlags()); 
+        
+        builder.Services.AddAzureAppConfiguration();
+
+        // Add App Insights
+        builder.Services.AddApplicationInsightsTelemetry(options => {
+            options.ConnectionString = builder.Configuration.GetConnectionString("appInsights");
+        });
+        builder.Services.AddSingleton<TelemetryClient>();
 
         builder.Services.AddHttpForwarderWithServiceDiscovery();
 
@@ -45,6 +67,10 @@ public static class Extensions
         builder.Services.AddHttpClient<OrderingService>(o => o.BaseAddress = new("http://ordering-api"))
             .AddApiVersion(1.0)
             .AddAuthToken();
+
+        builder.Services.AddFeatureManagement()
+            .WithTargeting<HttpContextTargetingContextAccessor>()
+            .AddTelemetryPublisher<ApplicationInsightsTelemetryPublisher>(); ;
     }
 
     public static void AddEventBusSubscriptions(this IEventBusBuilder eventBus)

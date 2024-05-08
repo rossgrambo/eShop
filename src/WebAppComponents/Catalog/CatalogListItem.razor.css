@@ -49,6 +49,17 @@
     margin-left: auto;
 }
 
+.catalog-product-content .strikethrough {
+    text-decoration: line-through;
+    color: #8b0000;
+    display: block;
+}
+
+.catalog-product-content .percent-off {
+    color: #8b0000;
+    display:block;
+}
+
 
 @media only screen and (max-width: 480px) { 
     .catalog-item {

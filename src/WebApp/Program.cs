@@ -11,6 +11,8 @@ builder.AddApplicationServices();
 
 var app = builder.Build();
 
+app.UseAzureAppConfiguration();
+
 app.MapDefaultEndpoints();
 
 // Configure the HTTP request pipeline.

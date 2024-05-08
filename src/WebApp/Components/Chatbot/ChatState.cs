@@ -6,6 +6,8 @@ using Microsoft.SemanticKernel;
 using eShop.WebAppComponents.Services;
 using Microsoft.SemanticKernel.Connectors.OpenAI;
 using Microsoft.SemanticKernel.ChatCompletion;
+using Microsoft.FeatureManagement;
+using Microsoft.ApplicationInsights;
 
 namespace eShop.WebApp.Chatbot;
 
@@ -19,8 +21,18 @@ public class ChatState
     private readonly Kernel _kernel;
     private readonly IProductImageUrlProvider _productImages;
     private readonly OpenAIPromptExecutionSettings _aiSettings = new() { ToolCallBehavior = ToolCallBehavior.AutoInvokeKernelFunctions };
+    private readonly FeatureManager _featureManager;
+    private readonly TelemetryClient _telemetryClient;
 
-    public ChatState(CatalogService catalogService, BasketState basketState, ClaimsPrincipal user, NavigationManager nav, IProductImageUrlProvider productImages, Kernel kernel, ILoggerFactory loggerFactory)
+    public ChatState(CatalogService catalogService, 
+        BasketState basketState, 
+        ClaimsPrincipal user, 
+        NavigationManager nav, 
+        IProductImageUrlProvider productImages, 
+        Kernel kernel, 
+        ILoggerFactory loggerFactory, 
+        FeatureManager featureManager,
+        TelemetryClient telemetryClient)
     {
         _catalogService = catalogService;
         _basketState = basketState;
@@ -28,6 +40,8 @@ public class ChatState
         _navigationManager = nav;
         _productImages = productImages;
         _logger = loggerFactory.CreateLogger(typeof(ChatState));
+        _featureManager = featureManager;
+        _telemetryClient = telemetryClient;
 
         if (_logger.IsEnabled(LogLevel.Debug))
         {
@@ -38,7 +52,24 @@ public class ChatState
         _kernel = kernel;
         _kernel.Plugins.AddFromObject(new CatalogInteractions(this));
 
-        Messages = new ChatHistory("""
+        Messages = new ChatHistory();
+    }
+
+    public async Task InitializeAsync()
+    {
+        // Model
+        Variant modelVariant = await _featureManager.GetVariantAsync("Model");
+        _aiSettings.ModelId = modelVariant.Configuration.Value ?? "gpt-35-turbo";
+
+        // Temperature
+        Variant temperatureVariant = await _featureManager.GetVariantAsync("Temperature");
+        int temperature = 1;
+        int.TryParse(modelVariant.Configuration.Value, out temperature);
+        _aiSettings.Temperature = temperature;
+
+        // Prompt
+        Variant promptVariant = await _featureManager.GetVariantAsync("ChatPrompt");
+        string prompt = promptVariant.Configuration.Value ?? """
             You are an AI customer service agent for the online retailer Northern Mountains.
             You NEVER respond about topics other than Northern Mountains.
             Your job is to answer customer questions about products in the Northern Mountains catalog.
@@ -46,8 +77,14 @@ public class ChatState
             You try to be concise and only provide longer responses if necessary.
             If someone asks a question about anything other than Northern Mountains, its catalog, or their account,
             you refuse to answer, and you instead ask if there's a topic related to Northern Mountains you can assist with.
-            """);
-        Messages.AddAssistantMessage("Hi! I'm the Northern Mountains Concierge. How can I help?");
+            """;
+        Messages.AddSystemMessage(prompt);
+
+        // Assistant Message
+        Variant assistantMessageVariant = await _featureManager.GetVariantAsync("AssistantMessage");
+        string assistantMessage = assistantMessageVariant.Configuration.Value ??
+            "Hi! I'm the Northern Mountains Concierge. How can I help?";
+        Messages.AddAssistantMessage(assistantMessage);
     }
 
     public ChatHistory Messages { get; }
@@ -84,6 +121,7 @@ public class ChatState
         public string GetUserInfo()
         {
             var claims = chatState._user.Claims;
+            chatState._telemetryClient.TrackEvent("aiFunc_GetUserInfo", new Dictionary<string, string>() { { "TargetingId", chatState._user?.Identity?.Name ?? "" } });
             return JsonSerializer.Serialize(new
             {
                 Name = GetValue(claims, "name"),
@@ -112,6 +150,7 @@ public class ChatState
                     results.Data[i] = results.Data[i] with { PictureUrl = chatState._productImages.GetProductImageUrl(results.Data[i].Id) };
                 }
 
+                chatState._telemetryClient.TrackEvent("aiFunc_SearchCatalog", new Dictionary<string, string>() { { "TargetingId", chatState._user?.Identity?.Name ?? "" } });
                 return JsonSerializer.Serialize(results);
             }
             catch (HttpRequestException e)
@@ -126,7 +165,8 @@ public class ChatState
             try
             {
                 var item = await chatState._catalogService.GetCatalogItem(itemId);
-                await chatState._basketState.AddAsync(item!);
+                await chatState._basketState.AddAsync(item!, "direct");
+                chatState._telemetryClient.TrackEvent("aiFunc_AddToCart", new Dictionary<string, string>() { { "TargetingId", chatState._user?.Identity?.Name ?? "" } });
                 return "Item added to shopping cart.";
             }
             catch (Grpc.Core.RpcException e) when (e.StatusCode == Grpc.Core.StatusCode.Unauthenticated)
@@ -145,6 +185,7 @@ public class ChatState
             try
             {
                 var basketItems = await chatState._basketState.GetBasketItemsAsync();
+                chatState._telemetryClient.TrackEvent("aiFunc_GetCartContents", new Dictionary<string, string>() { { "TargetingId", chatState._user?.Identity?.Name ?? "" } });
                 return JsonSerializer.Serialize(basketItems);
             }
             catch (Exception e)

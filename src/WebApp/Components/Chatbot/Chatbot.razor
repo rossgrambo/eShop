@@ -1,5 +1,7 @@
 ﻿@rendermode @(new InteractiveServerRenderMode(prerender: false))
+@using Microsoft.ApplicationInsights
 @using Microsoft.AspNetCore.Components.Authorization
+@using Microsoft.FeatureManagement
 @using Microsoft.SemanticKernel
 @using Microsoft.SemanticKernel.ChatCompletion
 @using eShop.WebApp.Chatbot
@@ -11,6 +13,8 @@
 @inject AuthenticationStateProvider AuthenticationStateProvider
 @inject ILoggerFactory LoggerFactory
 @inject IServiceProvider ServiceProvider
+@inject FeatureManager FeatureManager
+@inject TelemetryClient TelemetryClient
 
 <div class="floating-pane">
     <a href="@Nav.GetUriWithQueryParameter("chat", (string?)null)" class="hide-chatbot" title="Close .NET Concierge"><span>✖</span></a>
@@ -58,7 +62,8 @@
         if (kernel is not null)
         {
             AuthenticationState auth = await AuthenticationStateProvider.GetAuthenticationStateAsync();
-            chatState = new ChatState(CatalogService, BasketState, auth.User, Nav, ProductImages, kernel, LoggerFactory);
+            chatState = new ChatState(CatalogService, BasketState, auth.User, Nav, ProductImages, kernel, LoggerFactory, FeatureManager, TelemetryClient);
+            await chatState.InitializeAsync();
         }
         else
         {

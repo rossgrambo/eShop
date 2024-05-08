@@ -3,6 +3,8 @@ using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Components.Authorization;
 using eShop.WebAppComponents.Catalog;
 using eShop.WebAppComponents.Services;
+using Microsoft.IdentityModel.Abstractions;
+using Microsoft.ApplicationInsights;
 
 namespace eShop.WebApp.Services;
 
@@ -10,7 +12,8 @@ public class BasketState(
     BasketService basketService,
     CatalogService catalogService,
     OrderingService orderingService,
-    AuthenticationStateProvider authenticationStateProvider)
+    AuthenticationStateProvider authenticationStateProvider,
+    TelemetryClient telemetryClient)
 {
     private Task<IReadOnlyCollection<BasketItem>>? _cachedBasket;
     private HashSet<BasketStateChangedSubscription> _changeSubscriptions = new();
@@ -30,11 +33,20 @@ public class BasketState(
         return subscription;
     }
 
-    public async Task AddAsync(CatalogItem item)
+    public async Task AddAsync(CatalogItem item, string aiInfluenced)
     {
-        var items = (await FetchBasketItemsAsync()).Select(i => new BasketQuantity(i.ProductId, i.Quantity)).ToList();
+        var items = (await FetchBasketItemsAsync()).Select(i => {
+            if (i.ProductId == item.Id)
+            {
+                return new BasketQuantity(i.ProductId, i.Quantity, aiInfluenced);
+            }
+            else
+            {
+                return new BasketQuantity(i.ProductId, i.Quantity, i.AiInfluenced);
+            }
+        }).ToList();
         bool found = false;
-        for (var i = 0; i < items.Count; i++)
+        for (var i = 0; i < items.Count(); i++)
         {
             var existing = items[i];
             if (existing.ProductId == item.Id)
@@ -47,7 +59,7 @@ public class BasketState(
 
         if (!found)
         {
-            items.Add(new BasketQuantity(item.Id, 1));
+            items.Add(new BasketQuantity(item.Id, 1, aiInfluenced));
         }
 
         _cachedBasket = null;
@@ -70,7 +82,7 @@ public class BasketState(
             }
 
             _cachedBasket = null;
-            await basketService.UpdateBasketAsync(existingItems.Select(i => new BasketQuantity(i.ProductId, i.Quantity)).ToList());
+            await basketService.UpdateBasketAsync(existingItems.Select(i => new BasketQuantity(i.ProductId, i.Quantity, i.AiInfluenced)).ToList());
             await NotifyChangeSubscribersAsync();
         }
     }
@@ -106,6 +118,23 @@ public class BasketState(
             Items: [.. orderItems]);
         await orderingService.CreateOrder(request, checkoutInfo.RequestId);
         await DeleteBasketAsync();
+
+        decimal total = 0;
+        int quantity = 0;
+        int directAiInfluencedQuantity = 0;
+
+        foreach (var item in orderItems)
+        {
+            total += item.UnitPrice * item.Quantity;
+            quantity += item.Quantity;
+
+            if (item.AiInfluenced == "direct")
+            {
+                directAiInfluencedQuantity += item.Quantity;
+            }
+        }
+
+        telemetryClient.TrackEvent("checkout", new Dictionary<string, string>() { { "TargetingId", userName } }, new Dictionary<string, double>() { { "quantity", (double)quantity }, { "total", (double)total }, { "directAiInfluence", (double)directAiInfluencedQuantity } });
     }
 
     private Task NotifyChangeSubscribersAsync()
@@ -140,6 +169,7 @@ public class BasketState(
                     ProductName = catalogItem.Name,
                     UnitPrice = catalogItem.Price,
                     Quantity = item.Quantity,
+                    AiInfluenced = item.AiInfluenced
                 };
                 basketItems.Add(orderItem);
             }

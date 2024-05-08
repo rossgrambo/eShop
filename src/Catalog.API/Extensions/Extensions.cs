@@ -30,9 +30,9 @@ public static class Extensions
         builder.Services.AddOptions<AIOptions>()
             .BindConfiguration("AI");
 
-        if (!string.IsNullOrWhiteSpace(builder.Configuration.GetConnectionString("openai")))
+        if (!string.IsNullOrWhiteSpace(builder.Configuration.GetConnectionString("openai-embedding")))
         {
-            builder.AddAzureOpenAIClient("openai");
+            builder.AddAzureOpenAIClient("openai-embedding");
         }
 
         builder.Services.AddSingleton<ICatalogAI, CatalogAI>();

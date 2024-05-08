@@ -19,7 +19,13 @@
   <ItemGroup>
     <PackageReference Include="Asp.Versioning.Http.Client" />
     <PackageReference Include="Aspire.Azure.AI.OpenAI" />
+    <PackageReference Include="Microsoft.ApplicationInsights.AspNetCore" />
+    <PackageReference Include="Microsoft.Azure.AppConfiguration.AspNetCore" />
+    <PackageReference Include="Microsoft.Extensions.Configuration.AzureAppConfiguration" />
     <PackageReference Include="Microsoft.Extensions.ServiceDiscovery.Yarp" />
+    <PackageReference Include="Microsoft.FeatureManagement" />
+    <PackageReference Include="Microsoft.FeatureManagement.Telemetry.ApplicationInsights" />
+    <PackageReference Include="Microsoft.FeatureManagement.Telemetry.ApplicationInsights.AspNetCore" />
     <PackageReference Include="Microsoft.SemanticKernel" />
     <PackageReference Include="Microsoft.AspNetCore.Authentication.OpenIdConnect" />
     <PackageReference Include="Grpc.AspNetCore.Server.ClientFactory" />

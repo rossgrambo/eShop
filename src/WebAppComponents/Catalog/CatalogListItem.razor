@@ -1,4 +1,6 @@
-﻿@using eShop.WebAppComponents.Item
+﻿@using Microsoft.FeatureManagement
+@using eShop.WebAppComponents.Item
+@inject FeatureManager FeatureManager
 @inject IProductImageUrlProvider ProductImages
 
 <div class="catalog-item">
@@ -8,7 +10,16 @@
         </span>
         <span class='catalog-product-content'>
             <span class='name'>@Item.Name</span>
-            <span class='price'>$@Item.Price.ToString("0.00")</span>
+            <span class='price'>$@Item.Price.ToString("0.00")
+                @if (Variant?.Name == "Strikethrough")
+                {
+                <span class='strikethrough'>$@decimal.Round(Item.Price * 1.2M).99</span>
+                }
+                else if(Variant?.Name == "PercentOff")
+                {
+                <span class='percent-off'>(20% OFF)</span>
+                }
+            </span>
         </span>
     </a>
 </div>
@@ -19,4 +30,12 @@
 
     [Parameter]
     public bool IsLoggedIn { get; set; }
+
+    [Parameter]
+    public Variant? Variant { get; set; }
+
+    protected override async Task OnInitializedAsync()
+    {
+        Variant = await FeatureManager.GetVariantAsync("SaleDisplay");
+    }
 }

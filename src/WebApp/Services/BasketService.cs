@@ -39,11 +39,11 @@ public class BasketService(GrpcBasketClient basketClient)
         var result = new List<BasketQuantity>();
         foreach (var item in response.Items)
         {
-            result.Add(new BasketQuantity(item.ProductId, item.Quantity));
+            result.Add(new BasketQuantity(item.ProductId, item.Quantity, "none"));
         }
 
         return result;
     }
 }
 
-public record BasketQuantity(int ProductId, int Quantity);
+public record BasketQuantity(int ProductId, int Quantity, string AiInfluenced);
