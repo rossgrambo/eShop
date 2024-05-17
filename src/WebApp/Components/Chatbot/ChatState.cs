@@ -8,6 +8,7 @@ using Microsoft.SemanticKernel.Connectors.OpenAI;
 using Microsoft.SemanticKernel.ChatCompletion;
 using Microsoft.FeatureManagement;
 using Microsoft.ApplicationInsights;
+using Azure.AI.OpenAI;
 
 namespace eShop.WebApp.Chatbot;
 
@@ -57,19 +58,27 @@ public class ChatState
 
     public async Task InitializeAsync()
     {
+        // Variant aiSettings = await _featureManager.GetVariantAsync("AI Settings");
+
+        // Max Tokens
+        Variant maxTokensVariant = await _featureManager.GetVariantAsync("max_tokens");
+        int maxTokens = 1000;
+        int.TryParse(maxTokensVariant?.Configuration?.Value, out maxTokens);
+        _aiSettings.MaxTokens = maxTokens;
+
         // Model
-        Variant modelVariant = await _featureManager.GetVariantAsync("Model");
-        _aiSettings.ModelId = modelVariant.Configuration.Value ?? "gpt-35-turbo";
+        Variant modelVariant = await _featureManager.GetVariantAsync("model");
+        _aiSettings.ModelId = modelVariant?.Configuration?.Value ?? "gpt-35-turbo";
 
         // Temperature
-        Variant temperatureVariant = await _featureManager.GetVariantAsync("Temperature");
+        Variant temperatureVariant = await _featureManager.GetVariantAsync("temperature");
         int temperature = 1;
-        int.TryParse(modelVariant.Configuration.Value, out temperature);
+        int.TryParse(temperatureVariant?.Configuration?.Value, out temperature);
         _aiSettings.Temperature = temperature;
 
         // Prompt
-        Variant promptVariant = await _featureManager.GetVariantAsync("ChatPrompt");
-        string prompt = promptVariant.Configuration.Value ?? """
+        Variant promptVariant = await _featureManager.GetVariantAsync("chat_prompt");
+        string prompt = promptVariant?.Configuration?.Value ?? """
             You are an AI customer service agent for the online retailer Northern Mountains.
             You NEVER respond about topics other than Northern Mountains.
             Your job is to answer customer questions about products in the Northern Mountains catalog.
@@ -77,12 +86,13 @@ public class ChatState
             You try to be concise and only provide longer responses if necessary.
             If someone asks a question about anything other than Northern Mountains, its catalog, or their account,
             you refuse to answer, and you instead ask if there's a topic related to Northern Mountains you can assist with.
+            When listing products, keep your description to a single short sentence and include the price.
             """;
         Messages.AddSystemMessage(prompt);
 
         // Assistant Message
-        Variant assistantMessageVariant = await _featureManager.GetVariantAsync("AssistantMessage");
-        string assistantMessage = assistantMessageVariant.Configuration.Value ??
+        Variant assistantMessageVariant = await _featureManager.GetVariantAsync("assistant_message");
+        string assistantMessage = assistantMessageVariant?.Configuration?.Value ??
             "Hi! I'm the Northern Mountains Concierge. How can I help?";
         Messages.AddAssistantMessage(assistantMessage);
     }
@@ -99,7 +109,8 @@ public class ChatState
         try
         {
             ChatMessageContent response = await _kernel.GetRequiredService<IChatCompletionService>().GetChatMessageContentAsync(Messages, _aiSettings, _kernel);
-            if (!string.IsNullOrWhiteSpace(response.Content))
+            Console.WriteLine(response?.Metadata?.ToString());
+            if (!string.IsNullOrWhiteSpace(response?.Content))
             {
                 Messages.Add(response);
             }

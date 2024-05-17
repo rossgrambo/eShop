@@ -41,6 +41,19 @@
         }
     </div>
 
+    <div class="chatbot-icons">
+        <form class="chatbot-icon-input" @onsubmit="LikeAsync">
+            <button type="submit" title="Heart" disabled="@(chatState is null)">
+                <i class="far fa-heart fa-lg"></i>
+                <i class="fas fa-heart fa-lg" style="display:none;"></i>
+            </button>
+        </form>
+        <form class="chatbot-icon-input" @onsubmit="SpeakWithHumanAsync">
+            <button type="submit" title="Help" disabled="@(chatState is null)">
+                <i class="fas fa-user fa-lg"></i>
+            </button>
+        </form>
+    </div>
     <form class="chatbot-input" @onsubmit="SendMessageAsync">
         <textarea placeholder="Start chatting..." @ref="@textbox" @bind="messageToSend"></textarea>
         <button type="submit" title="Send" disabled="@(chatState is null)">Send</button>
@@ -82,6 +95,24 @@
             await chatState.AddUserMessageAsync(messageCopy, onMessageAdded: StateHasChanged);
             thinking = false;
         }
+    }
+
+    private Task LikeAsync()
+    {
+        JS.InvokeVoidAsync("eval", "document.querySelector('.far.fa-heart').style.display = 'none'; document.querySelector('.fas.fa-heart').style.display = 'inline';");
+
+        TelemetryClient.TrackEvent("Like");
+
+        return Task.CompletedTask;
+    }
+
+    private Task SpeakWithHumanAsync()
+    {
+        chatState?.Messages.AddAssistantMessage("Connecting you with a human agent...");
+
+        TelemetryClient.TrackEvent("SpeakWithHuman");
+
+        return Task.CompletedTask;
     }
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
