@@ -1,9 +1,11 @@
 ﻿@page "/item/{itemId:int}"
 @using System.Net
+@using Microsoft.ApplicationInsights
 @inject CatalogService CatalogService
 @inject BasketState BasketState
 @inject NavigationManager Nav
 @inject IProductImageUrlProvider ProductImages
+@inject TelemetryClient TelemetryClient
 
 @if (item is not null)
 {
@@ -76,6 +78,7 @@ else if (notFound)
     {
         try
         {
+            TelemetryClient.TrackEvent("items");
             isLoggedIn = HttpContext?.User.Identity?.IsAuthenticated == true;
             item = await CatalogService.GetCatalogItem(ItemId);
             await UpdateNumInCartAsync();
